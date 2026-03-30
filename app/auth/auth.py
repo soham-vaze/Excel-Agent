@@ -8,17 +8,19 @@ load_dotenv()
 TENANT_ID = os.getenv("TENANT_ID")
 CLIENT_ID = os.getenv("CLIENT_ID")
 
+
 def get_delegated_token():
-    url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/devicecode"
+    print("🔐 Getting token...")
+
+    device_code_url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/devicecode"
 
     data = {
         "client_id": CLIENT_ID,
         "scope": "Files.ReadWrite.All Sites.ReadWrite.All offline_access"
     }
 
-    res = requests.post(url, data=data).json()
+    res = requests.post(device_code_url, data=data).json()
 
-    print("\n🔐 LOGIN REQUIRED:")
     print(res["message"])
 
     device_code = res["device_code"]
@@ -36,11 +38,11 @@ def get_delegated_token():
         }).json()
 
         if "access_token" in token_res:
-            print("✅ Login successful!")
+            print("✅ Token acquired")
             return token_res["access_token"]
 
         elif token_res.get("error") == "authorization_pending":
             continue
         else:
-            print("❌ Token Error:", token_res)
+            print("❌ Token error:", token_res)
             return None

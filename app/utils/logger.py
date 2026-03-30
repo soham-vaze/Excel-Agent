@@ -6,3 +6,8 @@ def log_error(msg: str):
 
 def log_debug(msg: str):
     print(f"[DEBUG] {msg}")
+
+def log(title, data=None):
+    print(f"\n🔹 {title}")
+    if data:
+        print(data)

@@ -1,5 +1,9 @@
-def normalize_string(s: str) -> str:
-    return s.strip().lower()
+def normalize(text: str) -> str:
+    return text.strip().lower()
 
-def match_value(a: str, b: str) -> bool:
-    return normalize_string(a) == normalize_string(b)
+
+def build_column_map(headers: list) -> dict:
+    """
+    Converts headers → column index mapping
+    """
+    return {normalize(col): idx for idx, col in enumerate(headers)}

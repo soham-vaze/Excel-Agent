@@ -1,35 +1,24 @@
 import requests
 
-BASE_URL = "https://graph.microsoft.com/v1.0"
 
-def create_session(token, drive_id, file_id):
-    url = f"{BASE_URL}/drives/{drive_id}/items/{file_id}/workbook/createSession"
+def create_session(base_url, headers):
+    url = f"{base_url}/workbook/createSession"
 
-    res = requests.post(
-        url,
-        headers={"Authorization": f"Bearer {token}"},
-        json={"persistChanges": True}
-    )
+    res = requests.post(url, headers=headers, json={"persistChanges": True})
 
-    if res.status_code != 201:
-        raise Exception(f"Session failed: {res.text}")
+    if res.status_code == 201:
+        session_id = res.json()["id"]
+        headers["workbook-session-id"] = session_id
+        return headers
 
-    return res.json()["id"]
+    raise Exception(f"❌ Session failed: {res.json()}")
 
 
-def get_tables(headers, drive_id, file_id):
-    url = f"{BASE_URL}/drives/{drive_id}/items/{file_id}/workbook/tables"
+def get_columns(base_url, table_id, headers):
+    url = f"{base_url}/workbook/tables/{table_id}/columns"
     return requests.get(url, headers=headers).json()
 
 
-def get_rows(headers, drive_id, file_id, table_id):
-    url = f"{BASE_URL}/drives/{drive_id}/items/{file_id}/workbook/tables/{table_id}/rows"
+def get_rows(base_url, table_id, headers):
+    url = f"{base_url}/workbook/tables/{table_id}/rows"
     return requests.get(url, headers=headers).json()
-
-
-def add_row(headers, drive_id, file_id, table_id, values):
-    url = f"{BASE_URL}/drives/{drive_id}/items/{file_id}/workbook/tables/{table_id}/rows/add"
-
-    payload = {"values": [values]}
-
-    return requests.post(url, headers=headers, json=payload).json()
