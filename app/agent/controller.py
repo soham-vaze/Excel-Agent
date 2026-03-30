@@ -1,5 +1,10 @@
 from agent.parser import parse_intent
-from tools.excel_tools import get_row_tool
+from tools.excel_tools import (
+    get_row_tool,
+    add_row_tool,
+    add_column_tool,
+    read_cell_tool
+)
 
 
 def run_agent(user_input: str):
@@ -12,9 +17,17 @@ def run_agent(user_input: str):
 
     print(f"📦 Parsed Intent: {intent}")
 
-    # 🔀 Routing
     if intent.action == "get_rows":
         return get_row_tool(intent)
 
+    elif intent.action == "add_row":
+        return add_row_tool(intent)
+
+    elif intent.action == "add_column":
+        return add_column_tool(intent)
+
+    elif intent.action == "read_cell":
+        return read_cell_tool(intent)
+
     else:
-        return f"❌ Unsupported action: {intent.action}"
+        return f"❌ Unknown action: {intent.action}"

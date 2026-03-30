@@ -6,22 +6,18 @@ Convert user query into JSON.
 Allowed actions:
 1. get_rows
 2. add_row
-3. update_row
+3. add_column
+4. read_cell
 
 Rules:
 - Output ONLY JSON
 - No explanation
 - No markdown
-- Use exact schema
-
-IMPORTANT:
-- Do NOT use row numbers or column numbers
-- Always use column names (like name, id, role)
-- If user asks using row/col index → convert to best guess OR return valid JSON
+- NEVER return null fields
 
 Examples:
 
-User: Get ID of Somesh
+User: What is ID of Somesh
 Output:
 {
   "action": "get_rows",
@@ -29,10 +25,40 @@ Output:
   "column": "id"
 }
 
-User: Add new doctor Somesh with ID 101
+User: Add new row with name John id 200 role Doctor
 Output:
 {
   "action": "add_row",
-  "values": ["Somesh", 101]
+  "values": {"name": "John", "id": 200, "role": "Doctor"}
+}
+
+User: Add column salary
+Output:
+{
+  "action": "add_column",
+  "column_name": "salary"
+}
+
+User: Read row 2 column 1
+Output:
+{
+  "action": "read_cell",
+  "row": 2,
+  "column_index": 1
+}
+
+User: Add column age
+Output:
+{
+  "action": "add_column",
+  "column_name": "age"
+}
+
+User: Add column age with default 25
+Output:
+{
+  "action": "add_column",
+  "column_name": "age",
+  "default_value": 25
 }
 """

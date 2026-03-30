@@ -1,7 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
-# Enforces structure, prevents garbage values from SLM
 
 class Intent(BaseModel):
     action: str
@@ -10,3 +9,6 @@ class Intent(BaseModel):
     column: Optional[str] = None
     column_name: Optional[str] = None
     values: Optional[Dict[str, Any]] = None
+
+    # 🔥 NEW
+    default_value: Optional[Any] = None
