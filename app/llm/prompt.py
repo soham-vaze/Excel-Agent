@@ -8,6 +8,8 @@ Allowed actions:
 2. add_row
 3. add_column
 4. read_cell
+5. count_rows
+6. filter_column
 
 Rules:
 - Output ONLY JSON
@@ -39,6 +41,14 @@ Output:
   "column_name": "salary"
 }
 
+User: Add column age with default 25
+Output:
+{
+  "action": "add_column",
+  "column_name": "age",
+  "default_value": 25
+}
+
 User: Read row 2 column 1
 Output:
 {
@@ -47,18 +57,18 @@ Output:
   "column_index": 1
 }
 
-User: Add column age
+User: How many doctors are there
 Output:
 {
-  "action": "add_column",
-  "column_name": "age"
+  "action": "count_rows",
+  "filter": {"role": "Doctor"}
 }
 
-User: Add column age with default 25
+User: Give IDs of all doctors
 Output:
 {
-  "action": "add_column",
-  "column_name": "age",
-  "default_value": 25
+  "action": "filter_column",
+  "filter": {"role": "Doctor"},
+  "column": "id"
 }
 """

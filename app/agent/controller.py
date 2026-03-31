@@ -3,7 +3,9 @@ from tools.excel_tools import (
     get_row_tool,
     add_row_tool,
     add_column_tool,
-    read_cell_tool
+    read_cell_tool,
+    count_rows_tool,
+    filter_column_tool
 )
 
 
@@ -28,6 +30,12 @@ def run_agent(user_input: str):
 
     elif intent.action == "read_cell":
         return read_cell_tool(intent)
+    
+    elif intent.action == "count_rows":
+        return count_rows_tool(intent)
+
+    elif intent.action == "filter_column":
+        return filter_column_tool(intent)
 
     else:
         return f"❌ Unknown action: {intent.action}"
