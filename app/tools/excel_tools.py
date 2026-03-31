@@ -122,46 +122,78 @@ def add_row_tool(intent):
 # =========================
 # ➕ TOOL: ADD COLUMN
 # =========================
+def get_excel_column_letter(n):
+    result = ""
+    while n >= 0:
+        result = chr(n % 26 + 65) + result
+        n = n // 26 - 1
+    return result
+
 def add_column_tool(intent):
     headers = setup_excel()
 
     column_name = intent.column_name
-    default_value = getattr(intent, "default_value", None)
+    default_value = intent.default_value
 
-    # Add column
+    if not column_name:
+        return "❌ Column name missing"
+
+    # =========================
+    # 1️⃣ Get existing columns
+    # =========================
+    header_names = get_headers(headers)
+    column_map = build_column_map(header_names)
+
+    if column_name.lower() in column_map:
+        return f"⚠️ Column '{column_name}' already exists"
+
+    # =========================
+    # 2️⃣ Create column (Graph API)
+    # =========================
     url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/columns/add"
 
-    res = requests.post(
-        url,
-        headers=headers,
-        json={"name": column_name}
-    )
+    payload = {
+        "name": column_name
+    }
+
+    res = requests.post(url, headers=headers, json=payload)
 
     if res.status_code not in [200, 201]:
-        return f"❌ Failed: {res.text}"
+        return f"❌ Failed to create column: {res.text}"
 
-    # Fill default values
+    log("Column Created", column_name)
+
+    # =========================
+    # 3️⃣ Fill default values (if provided)
+    # =========================
     if default_value is not None:
-        rows = get_all_rows(headers)
+
+    # Refresh headers
         header_names = get_headers(headers)
         column_map = build_column_map(header_names)
 
-        col_idx = column_map[column_name.lower()]
+        new_col_key = column_name.lower()
+        new_col_idx = column_map[new_col_key]
 
-        for i, row in enumerate(rows):
-            row[col_idx] = default_value
+        rows_data = get_rows(BASE_URL, TABLE_ID, headers).get("value", [])
 
-            update_url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/rows/{i}"
+        for i, row in enumerate(rows_data):
+
+            # Excel uses A1 notation → convert column index
+            col_letter = get_excel_column_letter(new_col_idx)  # A, B, C...
+            cell_address = f"{col_letter}{i + 2}"  # +2 because header is row 1
+
+            range_url = f"{BASE_URL}/workbook/worksheets('Sheet1')/range(address='{cell_address}')"
 
             requests.patch(
-                update_url,
+                range_url,
                 headers=headers,
-                json={"values": [row]}
+                json={
+                    "values": [[default_value]]
+                }
             )
 
-    return f"✅ Column '{column_name}' added"
-
-
+    return f"✅ Column '{column_name}' added with default '{default_value}'"
 # =========================
 # 📖 TOOL: READ CELL
 # =========================
@@ -198,29 +230,144 @@ def count_rows_tool(intent):
 
     return f"✅ Count: {count}"
 
+def find_best_column(column_map, target):
+    target = normalize(target)
+
+    for col in column_map:
+        if normalize(col) == target:
+            return col
+
+    return None
+
+def normalize(text):
+    return text.lower().replace("_", " ").strip()
+
 
 # =========================
 # 📊 TOOL: FILTER COLUMN
 # =========================
+# def filter_column_tool(intent):
+#     headers = setup_excel()
+
+#     # ✅ Step 1: Get headers + rows
+#     header_names = get_headers(headers)
+#     rows = get_all_rows_dict(headers)
+
+#     # ✅ Step 2: Build column map
+#     column_map = build_column_map(header_names)
+
+#     # ✅ Step 3: Resolve target column
+#     target_column = find_best_column(column_map, intent.column)
+
+#     if not target_column:
+#         return f"❌ Column '{intent.column}' not found"
+
+#     result = []
+
+#     # ✅ Step 4: Iterate rows
+#     for row in rows:
+#         match = True
+
+#         if intent.filter:
+#             for key, value in intent.filter.items():
+#                 mapped_key = find_best_column(column_map, key)
+
+#                 if not mapped_key:
+#                     return f"❌ Column '{key}' not found"
+
+#                 if str(row.get(mapped_key, "")).lower() != str(value).lower():
+#                     match = False
+#                     break
+
+#         if match:
+#             val = row.get(target_column)
+#             if val is not None:
+#                 result.append(val)
+
+#     if not result:
+#         return "❌ No matching data"
+
+#     return result[:20]  
+
 def filter_column_tool(intent):
     headers = setup_excel()
+
+    # Step 1: Get headers + rows
+    header_names = get_headers(headers)
     rows = get_all_rows_dict(headers)
 
-    result = []
+    column_map = build_column_map(header_names)
 
+    # Step 2: Resolve target column
+    target_column = find_best_column(column_map, intent.column)
+
+    if not target_column:
+        return f"❌ Column '{intent.column}' not found"
+
+    results = []
+
+    # Step 3: Iterate rows
     for row in rows:
         match = True
 
         if intent.filter:
             for key, value in intent.filter.items():
-                if str(row.get(key.lower(), "")).lower() != str(value).lower():
+                mapped_key = find_best_column(column_map, key)
+
+                if not mapped_key:
+                    return f"❌ Column '{key}' not found"
+
+                cell_value = str(row.get(mapped_key, "")).strip().lower()
+                filter_value = str(value).strip().lower()
+
+                if cell_value != filter_value:
                     match = False
                     break
 
         if match:
-            result.append(row.get(intent.column.lower()))
+            val = row.get(target_column)
 
-    if not result:
+            # ✅ IMPORTANT: ignore empty / None
+            if val not in [None, "", "nan"]:
+                results.append(val)
+
+    if not results:
         return "❌ No matching data"
 
-    return result[:20]
+    return results
+
+def aggregate_column_tool(intent):
+    headers = setup_excel()
+
+    # Step 1: Get headers + rows
+    header_names = get_headers(headers)
+    rows = get_all_rows_dict(headers)
+
+    column_map = build_column_map(header_names)
+
+    # Step 2: Resolve column
+    target_column = find_best_column(column_map, intent.column)
+
+    if not target_column:
+        return f"❌ Column '{intent.column}' not found"
+
+    freq = {}
+
+    # Step 3: Count frequencies
+    for row in rows:
+        val = row.get(target_column)
+
+        if val in [None, "", "nan"]:
+            continue
+
+        val = str(val).strip()
+
+        if val not in freq:
+            freq[val] = 0
+
+        freq[val] += 1
+
+    if not freq:
+        return "❌ No data found"
+
+    return freq

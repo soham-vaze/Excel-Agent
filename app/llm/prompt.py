@@ -71,4 +71,26 @@ Output:
   "filter": {"role": "Doctor"},
   "column": "id"
 }
+
+User: Give me requirement tags for task with feature reference MID-16
+Output:
+{
+  "action": "filter_column",
+  "filter": {"feature reference": "MID-16"},
+  "column": "requirement tags"
+}
+
+User: Analyze status column
+Output:
+{
+  "action": "aggregate_column",
+  "column": "status"
+}
+
+User: Give frequency of feature reference
+Output:
+{
+  "action": "aggregate_column",
+  "column": "feature reference"
+}
 """
