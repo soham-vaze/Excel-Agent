@@ -16,16 +16,14 @@ BASE_URL = f"https://graph.microsoft.com/v1.0/drives/{DRIVE_ID}/items/{ITEM_ID}"
 # =========================
 # 🔧 SETUP
 # =========================
-def setup_excel():
-    token = get_valid_token()
-
+def setup_excel(graph_token):
     headers = {
-        "Authorization": f"Bearer {token}"
+        "Authorization": f"Bearer {graph_token}",
+        "Content-Type": "application/json"
     }
-
-    headers = create_session(BASE_URL, headers)
+    # If create_session adds specific workbook session IDs, keep it
+    # Otherwise, this simple header is often enough for Graph
     return headers
-
 
 # =========================
 # 📊 HELPERS
@@ -63,8 +61,8 @@ def get_all_rows_dict(headers):
 # =========================
 # 🎯 TOOL: GET ROW
 # =========================
-def get_row_tool(intent):
-    headers = setup_excel()
+def get_row_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
 
     header_names = get_headers(headers)
     rows = get_all_rows(headers)
@@ -93,8 +91,8 @@ def get_row_tool(intent):
 # =========================
 # ➕ TOOL: ADD ROW
 # =========================
-def add_row_tool(intent):
-    headers = setup_excel()
+def add_row_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
 
     header_names = get_headers(headers)
     column_map = build_column_map(header_names)
@@ -129,76 +127,147 @@ def get_excel_column_letter(n):
         n = n // 26 - 1
     return result
 
-def add_column_tool(intent):
-    headers = setup_excel()
+# def add_column_tool(intent):
+#     headers = setup_excel()
+
+#     column_name = intent.column_name
+#     default_value = intent.default_value
+
+#     if not column_name:
+#         return "❌ Column name missing"
+
+#     # =========================
+#     # 1️⃣ Get existing columns
+#     # =========================
+#     header_names = get_headers(headers)
+#     column_map = build_column_map(header_names)
+
+#     if column_name.lower() in column_map:
+#         return f"⚠️ Column '{column_name}' already exists"
+
+#     # =========================
+#     # 2️⃣ Create column (Graph API)
+#     # =========================
+#     url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/columns/add"
+
+#     payload = {
+#         "name": column_name
+#     }
+
+#     res = requests.post(url, headers=headers, json=payload)
+
+#     if res.status_code not in [200, 201]:
+#         return f"❌ Failed to create column: {res.text}"
+
+#     log("Column Created", column_name)
+
+#     # =========================
+#     # 3️⃣ Fill default values (if provided)
+#     # =========================
+#     if default_value is not None:
+
+#     # Refresh headers
+#         header_names = get_headers(headers)
+#         column_map = build_column_map(header_names)
+
+#         new_col_key = column_name.lower()
+#         new_col_idx = column_map[new_col_key]
+
+#         rows_data = get_rows(BASE_URL, TABLE_ID, headers).get("value", [])
+
+#         for i, row in enumerate(rows_data):
+
+#             # Excel uses A1 notation → convert column index
+#             col_letter = get_excel_column_letter(new_col_idx)  # A, B, C...
+#             cell_address = f"{col_letter}{i + 2}"  # +2 because header is row 1
+
+#             range_url = f"{BASE_URL}/workbook/worksheets('Sheet1')/range(address='{cell_address}')"
+
+#             requests.patch(
+#                 range_url,
+#                 headers=headers,
+#                 json={
+#                     "values": [[default_value]]
+#                 }
+#             )
+
+#     return f"✅ Column '{column_name}' added with default '{default_value}'"
+
+def add_column_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
 
     column_name = intent.column_name
     default_value = intent.default_value
+    position = intent.position
+    ref_col = intent.reference_column
 
-    if not column_name:
-        return "❌ Column name missing"
+    header_names = get_headers(headers)
+    rows = get_all_rows(headers)
 
-    # =========================
-    # 1️⃣ Get existing columns
-    # =========================
+    column_map = build_column_map(header_names)
+
+    # Step 1: Add column normally (at end)
+    url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/columns/add"
+    res = requests.post(url, headers=headers, json={"name": column_name})
+
+    if res.status_code not in [200, 201]:
+        return "❌ Failed to create column"
+
+    # Step 2: If no positioning needed → normal flow
+    if not position or not ref_col:
+        return "✅ Column added"
+
+    # Step 3: Re-fetch updated headers
     header_names = get_headers(headers)
     column_map = build_column_map(header_names)
 
-    if column_name.lower() in column_map:
-        return f"⚠️ Column '{column_name}' already exists"
+    new_col = find_best_column(column_map, column_name)
+    ref_col = find_best_column(column_map, ref_col)
 
-    # =========================
-    # 2️⃣ Create column (Graph API)
-    # =========================
-    url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/columns/add"
+    if not ref_col:
+        return f"❌ Reference column '{intent.reference_column}' not found"
 
-    payload = {
-        "name": column_name
-    }
+    new_idx = column_map[new_col]
+    ref_idx = column_map[ref_col]
 
-    res = requests.post(url, headers=headers, json=payload)
+    # Step 4: Decide new position
+    if position == "left":
+        target_idx = ref_idx
+    else:
+        target_idx = ref_idx + 1
 
-    if res.status_code not in [200, 201]:
-        return f"❌ Failed to create column: {res.text}"
+    # Step 5: Reorder headers
+    headers_new = header_names.copy()
+    col_name_actual = headers_new.pop(new_idx)
+    headers_new.insert(target_idx, col_name_actual)
 
-    log("Column Created", column_name)
+    # Step 6: Reorder rows
+    updated_rows = []
+    for row in rows:
+        val = default_value if default_value else None
+        row.append(val)
 
-    # =========================
-    # 3️⃣ Fill default values (if provided)
-    # =========================
-    if default_value is not None:
+        item = row.pop(new_idx)
+        row.insert(target_idx, item)
 
-    # Refresh headers
-        header_names = get_headers(headers)
-        column_map = build_column_map(header_names)
+        updated_rows.append(row)
 
-        new_col_key = column_name.lower()
-        new_col_idx = column_map[new_col_key]
+    # Step 7: Rewrite entire table (IMPORTANT)
+    range_url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/range"
 
-        rows_data = get_rows(BASE_URL, TABLE_ID, headers).get("value", [])
+    requests.patch(
+        range_url,
+        headers=headers,
+        json={"values": [headers_new] + updated_rows}
+    )
 
-        for i, row in enumerate(rows_data):
+    return f"✅ Column '{column_name}' added {position} of '{ref_col}'"
 
-            # Excel uses A1 notation → convert column index
-            col_letter = get_excel_column_letter(new_col_idx)  # A, B, C...
-            cell_address = f"{col_letter}{i + 2}"  # +2 because header is row 1
-
-            range_url = f"{BASE_URL}/workbook/worksheets('Sheet1')/range(address='{cell_address}')"
-
-            requests.patch(
-                range_url,
-                headers=headers,
-                json={
-                    "values": [[default_value]]
-                }
-            )
-
-    return f"✅ Column '{column_name}' added with default '{default_value}'"
 # =========================
 # 📖 TOOL: READ CELL
 # =========================
-def read_cell_tool(intent):
-    headers = setup_excel()
+def read_cell_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
     rows = get_all_rows(headers)
 
     try:
@@ -210,8 +279,8 @@ def read_cell_tool(intent):
 # =========================
 # 🔢 TOOL: COUNT ROWS
 # =========================
-def count_rows_tool(intent):
-    headers = setup_excel()
+def count_rows_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
     rows = get_all_rows_dict(headers)
 
     count = 0
@@ -235,6 +304,7 @@ def find_best_column(column_map, target):
 
     for col in column_map:
         if normalize(col) == target:
+            print(f"Founf best column {col}")
             return col
 
     return None
@@ -289,8 +359,8 @@ def normalize(text):
 
 #     return result[:20]  
 
-def filter_column_tool(intent):
-    headers = setup_excel()
+def filter_column_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
 
     # Step 1: Get headers + rows
     header_names = get_headers(headers)
@@ -336,8 +406,8 @@ def filter_column_tool(intent):
 
     return results
 
-def aggregate_column_tool(intent):
-    headers = setup_excel()
+def aggregate_column_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
 
     # Step 1: Get headers + rows
     header_names = get_headers(headers)
@@ -371,3 +441,52 @@ def aggregate_column_tool(intent):
         return "❌ No data found"
 
     return freq
+
+def update_cell_tool(intent,graph_token):
+    headers = setup_excel(graph_token)
+
+    header_names = get_headers(headers)
+    column_map = build_column_map(header_names)
+
+    rows_data = get_rows(BASE_URL, TABLE_ID, headers).get("value", [])
+
+    if not intent.column or not intent.filter or not intent.value:
+        return "❌ Missing column/filter/value"
+
+    # ✅ Normalize columns
+    target_column = find_best_column(column_map, intent.column)
+
+    filter_key = list(intent.filter.keys())[0]
+    filter_value = intent.filter[filter_key]
+
+    filter_column = find_best_column(column_map, filter_key)
+
+    if not target_column or not filter_column:
+        return "❌ Column not found"
+
+    target_idx = column_map[target_column]
+    filter_idx = column_map[filter_column]
+
+    updated = False
+
+    for row in rows_data:
+        row_values = row["values"][0]
+
+        if str(row_values[filter_idx]).lower() == str(filter_value).lower():
+
+            row_values[target_idx] = intent.value
+
+            update_url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/rows/{row['index']}"
+
+            requests.patch(
+                update_url,
+                headers=headers,
+                json={"values": [row_values]}
+            )
+
+            updated = True
+
+    if not updated:
+        return "❌ No matching rows found"
+
+    return f"✅ Updated '{target_column}' to '{intent.value}'"

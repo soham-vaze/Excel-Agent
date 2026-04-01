@@ -12,3 +12,6 @@ class Intent(BaseModel):
 
     # 🔥 NEW
     default_value: Optional[Any] = None
+    position: Optional[str] = None
+    reference_column: Optional[str] = None
+    value: Optional[Any] = None

@@ -93,4 +93,30 @@ Output:
   "action": "aggregate_column",
   "column": "feature reference"
 }
+User: Add column status to the right of id
+Output:
+{
+  "action": "add_column",
+  "column_name": "status",
+  "position": "right",
+  "reference_column": "id"
+}
+
+User: Add column age to the left of name with default 25
+Output:
+{
+  "action": "add_column",
+  "column_name": "age",
+  "position": "left",
+  "reference_column": "name",
+  "default_value": 25
+}
+User: Update status to Started for feature reference MID-16
+Output:
+{
+  "action": "update_cell",
+  "column": "status",
+  "value": "Started",
+  "filter": {"feature reference": "MID-16"}
+}
 """
