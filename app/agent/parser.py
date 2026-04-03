@@ -4,8 +4,8 @@ from agent.schemas import Intent
 from tools.excel_tools import setup_excel, get_headers
 
 
-def build_prompt(user_input: str) -> str:
-    headers = setup_excel()
+def build_prompt(user_input: str,graph_token) -> str:
+    headers = setup_excel(graph_token)
     column_names = get_headers(headers)
 
     return f"""
@@ -16,6 +16,7 @@ Available columns:
 
 Instructions:
 - Always use column names EXACTLY as provided above
+- What is status for task wth requirement reference MID-16-1?
 - Do NOT invent column names
 - Convert user query into JSON
 
@@ -24,10 +25,10 @@ Instructions:
 User: {user_input}
 
 Return ONLY JSON:
-"""
+""" 
 
-def parse_intent(user_input: str) -> Intent | None:
-    prompt = build_prompt(user_input)
+def parse_intent(user_input: str,graph_token) -> Intent | None:
+    prompt = build_prompt(user_input,graph_token)
 
     response = call_ollama_json(prompt)
 

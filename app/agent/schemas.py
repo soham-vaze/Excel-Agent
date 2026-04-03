@@ -15,3 +15,4 @@ class Intent(BaseModel):
     position: Optional[str] = None
     reference_column: Optional[str] = None
     value: Optional[Any] = None
+    explain: Optional[bool] = None

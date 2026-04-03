@@ -7,7 +7,7 @@ from agent.controller import run_agent
 import os
 from dotenv import load_dotenv
 import msal
-
+import base64
 
 
 load_dotenv()
@@ -219,4 +219,49 @@ def ask_agent(body: QueryRequest, request: Request, user=Depends(get_current_use
             "user": user.get("name"),
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+import base64
+
+class QueryRequest(BaseModel):
+    query: str
+    drive_id: str
+    item_id: str
+
+# 🔗 Convert a SharePoint/OneDrive URL to a Graph-compatible ID
+@app.get("/resolve-url")
+def resolve_url(url: str, request: Request):
+    auth_header = request.headers.get("Authorization")
+    user_token = auth_header.split(" ")[1]
+    graph_token = get_graph_token(user_token)
+
+    # Encode the URL to a "sharing token" format required by Graph
+    base64_url = base64.b64encode(url.encode("utf-8")).decode("utf-8").replace('/', '_').replace('+', '-').rstrip('=')
+    share_url = f"https://graph.microsoft.com/v1.0/shares/u!{base64_url}/driveItem"
+
+    res = requests.get(share_url, headers={"Authorization": f"Bearer {graph_token}"})
+    if res.status_code != 200:
+        raise HTTPException(status_code=res.status_code, detail="Invalid URL or No Access")
+    
+    data = res.json()
+    return {
+        "drive_id": data.get("parentReference", {}).get("driveId"),
+        "item_id": data.get("id"),
+        "name": data.get("name"),
+        "folder": "folder" in data
+    }
+
+# 📁 List children of a folder
+@app.get("/list-folder")
+def list_folder(drive_id: str, item_id: str, request: Request):
+    auth_header = request.headers.get("Authorization")
+    user_token = auth_header.split(" ")[1]
+    graph_token = get_graph_token(user_token)
+
+    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/children"
+    res = requests.get(url, headers={"Authorization": f"Bearer {graph_token}"})
+    
+    return res.json() # Returns list of files/folders

@@ -10,6 +10,9 @@ Allowed actions:
 4. read_cell
 5. count_rows
 6. filter_column
+7. aggregate_column
+8. update_cell
+9. explain_task
 
 Rules:
 - Output ONLY JSON
@@ -117,6 +120,18 @@ Output:
   "action": "update_cell",
   "column": "status",
   "value": "Started",
+  "filter": {"feature reference": "MID-16"}
+}
+User: Explain task with feature reference MID-16
+Output:
+{
+  "action": "explain_task",
+  "filter": {"feature reference": "MID-16"}
+}
+User: Give me the details of task with feature reference MID-16
+Output:
+{
+  "action": "explain_task",
   "filter": {"feature reference": "MID-16"}
 }
 """

@@ -4,6 +4,7 @@ from utils.helpers import build_column_map
 from utils.logger import log
 import requests
 import os
+from llm.ollama import call_ollama
 
 # 🔹 CONFIG
 DRIVE_ID = os.getenv("DRIVE_ID")
@@ -16,14 +17,15 @@ BASE_URL = f"https://graph.microsoft.com/v1.0/drives/{DRIVE_ID}/items/{ITEM_ID}"
 # =========================
 # 🔧 SETUP
 # =========================
-def setup_excel(graph_token):
+def setup_excel(graph_token,drive_id, item_id):
     headers = {
         "Authorization": f"Bearer {graph_token}",
         "Content-Type": "application/json"
     }
     # If create_session adds specific workbook session IDs, keep it
     # Otherwise, this simple header is often enough for Graph
-    return headers
+    base_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}"
+    return headers, base_url
 
 # =========================
 # 📊 HELPERS
@@ -61,8 +63,8 @@ def get_all_rows_dict(headers):
 # =========================
 # 🎯 TOOL: GET ROW
 # =========================
-def get_row_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+def get_row_tool(intent,graph_token,drive_id, item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
 
     header_names = get_headers(headers)
     rows = get_all_rows(headers)
@@ -91,8 +93,8 @@ def get_row_tool(intent,graph_token):
 # =========================
 # ➕ TOOL: ADD ROW
 # =========================
-def add_row_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+def add_row_tool(intent,graph_token,drive_id, item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
 
     header_names = get_headers(headers)
     column_map = build_column_map(header_names)
@@ -193,8 +195,8 @@ def get_excel_column_letter(n):
 
 #     return f"✅ Column '{column_name}' added with default '{default_value}'"
 
-def add_column_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+def add_column_tool(intent,graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
 
     column_name = intent.column_name
     default_value = intent.default_value
@@ -209,7 +211,7 @@ def add_column_tool(intent,graph_token):
     # Step 1: Add column normally (at end)
     url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/columns/add"
     res = requests.post(url, headers=headers, json={"name": column_name})
-
+    print(res.status_code)
     if res.status_code not in [200, 201]:
         return "❌ Failed to create column"
 
@@ -266,8 +268,8 @@ def add_column_tool(intent,graph_token):
 # =========================
 # 📖 TOOL: READ CELL
 # =========================
-def read_cell_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+def read_cell_tool(intent,graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
     rows = get_all_rows(headers)
 
     try:
@@ -279,8 +281,8 @@ def read_cell_tool(intent,graph_token):
 # =========================
 # 🔢 TOOL: COUNT ROWS
 # =========================
-def count_rows_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+def count_rows_tool(intent,graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
     rows = get_all_rows_dict(headers)
 
     count = 0
@@ -299,13 +301,40 @@ def count_rows_tool(intent,graph_token):
 
     return f"✅ Count: {count}"
 
-def find_best_column(column_map, target):
-    target = normalize(target)
+# def find_best_column(column_map, target):
+#     target = normalize(target)
 
-    for col in column_map:
-        if normalize(col) == target:
-            print(f"Founf best column {col}")
+#     for col in column_map:
+#         if normalize(col) == target:
+#             print(f"Founf best column {col}")
+#             return col
+
+#     return None
+
+from difflib import get_close_matches
+
+def find_best_column(column_map, target):
+    target_norm = normalize(target)
+
+    cols = list(column_map.keys())
+
+    # Exact match
+    for col in cols:
+        if normalize(col) == target_norm:
             return col
+
+    # Partial match
+    for col in cols:
+        if target_norm in normalize(col):
+            return col
+
+    # Fuzzy match
+    matches = get_close_matches(target_norm, [normalize(c) for c in cols], n=1, cutoff=0.6)
+
+    if matches:
+        for col in cols:
+            if normalize(col) == matches[0]:
+                return col
 
     return None
 
@@ -359,8 +388,8 @@ def normalize(text):
 
 #     return result[:20]  
 
-def filter_column_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+def filter_column_tool(intent,graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
 
     # Step 1: Get headers + rows
     header_names = get_headers(headers)
@@ -404,10 +433,25 @@ def filter_column_tool(intent,graph_token):
     if not results:
         return "❌ No matching data"
 
-    return results
+    results = list(dict.fromkeys(results))
 
-def aggregate_column_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+    # Limit output size
+    display_results = results
+
+    formatted = "\n".join([f"{i+1}. {val}" for i, val in enumerate(display_results)])
+
+    response = f"""
+    📋 {target_column.title()} Results:
+
+    {formatted}
+
+    🔢 Total: {len(results)} entries
+    """
+
+    return response.strip()
+
+def aggregate_column_tool(intent,graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
 
     # Step 1: Get headers + rows
     header_names = get_headers(headers)
@@ -440,10 +484,71 @@ def aggregate_column_tool(intent,graph_token):
     if not freq:
         return "❌ No data found"
 
-    return freq
+    formatted = "\n".join([f"{k}: {v}" for k, v in freq.items()])
 
-def update_cell_tool(intent,graph_token):
-    headers = setup_excel(graph_token)
+    response = f"""
+    📊 {target_column.title()} Analysis:
+
+    {formatted}
+
+    🔢 Total Unique Values: {len(freq)}
+    """
+
+    return response.strip()
+
+# def update_cell_tool(intent,graph_token):
+#     headers = setup_excel(graph_token)
+
+#     header_names = get_headers(headers)
+#     column_map = build_column_map(header_names)
+
+#     rows_data = get_rows(BASE_URL, TABLE_ID, headers).get("value", [])
+
+#     if not intent.column or not intent.filter or not intent.value:
+#         return "❌ Missing column/filter/value"
+
+#     # ✅ Normalize columns
+#     target_column = find_best_column(column_map, intent.column)
+
+#     filter_key = list(intent.filter.keys())[0]
+#     filter_value = intent.filter[filter_key]
+
+#     filter_column = find_best_column(column_map, filter_key)
+
+#     if not target_column or not filter_column:
+#         return "❌ Column not found"
+
+#     target_idx = column_map[target_column]
+#     filter_idx = column_map[filter_column]
+
+#     updated = False
+
+#     for row in rows_data:
+#         row_values = row["values"][0]
+
+#         if str(row_values[filter_idx]).lower() == str(filter_value).lower():
+
+#             row_values[target_idx] = intent.value
+
+#             update_url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/rows/{row['index']}"
+
+#             requests.patch(
+#                 update_url,
+#                 headers=headers,
+#                 json={"values": [row_values]}
+#             )
+
+#             updated = True
+
+#     if not updated:
+#         return "❌ No matching rows found"
+
+#     return f"✅ Updated '{target_column}' to '{intent.value}'"
+
+
+
+def update_cell_tool(intent, graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id, item_id)
 
     header_names = get_headers(headers)
     column_map = build_column_map(header_names)
@@ -453,7 +558,7 @@ def update_cell_tool(intent,graph_token):
     if not intent.column or not intent.filter or not intent.value:
         return "❌ Missing column/filter/value"
 
-    # ✅ Normalize columns
+    # 🔍 Resolve columns properly
     target_column = find_best_column(column_map, intent.column)
 
     filter_key = list(intent.filter.keys())[0]
@@ -469,20 +574,25 @@ def update_cell_tool(intent,graph_token):
 
     updated = False
 
-    for row in rows_data:
+    for i, row in enumerate(rows_data):
         row_values = row["values"][0]
 
-        if str(row_values[filter_idx]).lower() == str(filter_value).lower():
+        if str(row_values[filter_idx]).strip().lower() == str(filter_value).strip().lower():
 
-            row_values[target_idx] = intent.value
+            # 📍 Convert to Excel A1 notation
+            col_letter = get_excel_column_letter(target_idx)
+            cell_address = f"{col_letter}{i + 2}"   # +2 because header = row 1
 
-            update_url = f"{BASE_URL}/workbook/tables/{TABLE_ID}/rows/{row['index']}"
+            range_url = f"{BASE_URL}/workbook/worksheets('Sheet1')/range(address='{cell_address}')"
 
-            requests.patch(
-                update_url,
+            res = requests.patch(
+                range_url,
                 headers=headers,
-                json={"values": [row_values]}
+                json={"values": [[intent.value]]}
             )
+
+            if res.status_code not in [200, 201]:
+                return f"❌ Update failed: {res.text}"
 
             updated = True
 
@@ -490,3 +600,65 @@ def update_cell_tool(intent,graph_token):
         return "❌ No matching rows found"
 
     return f"✅ Updated '{target_column}' to '{intent.value}'"
+
+def explain_task_tool(intent, graph_token,drive_id,item_id):
+    headers = setup_excel(graph_token,drive_id,item_id)
+
+    # Step 1: Get data
+    header_names = get_headers(headers)
+    rows = get_all_rows_dict(headers)
+
+    column_map = build_column_map(header_names)
+
+    if not intent.filter:
+        return "❌ Missing filter condition"
+
+    # Step 2: Resolve filter column
+    filter_key = list(intent.filter.keys())[0]
+    filter_value = intent.filter[filter_key]
+
+    filter_column = find_best_column(column_map, filter_key)
+
+    if not filter_column:
+        return f"❌ Column '{filter_key}' not found"
+
+    # Step 3: Find matching rows
+    matched_rows = []
+
+    for row in rows:
+        val = str(row.get(filter_column, "")).strip().lower()
+        if val == str(filter_value).strip().lower():
+            matched_rows.append(row)
+
+    if not matched_rows:
+        return "❌ No matching task found"
+
+    # Step 4: Convert rows → text
+    context_blocks = []
+
+    for row in matched_rows:
+        text = "\n".join([f"{k}: {v}" for k, v in row.items() if v])
+        context_blocks.append(text)
+
+    context = "\n\n---\n\n".join(context_blocks)
+
+    # Step 5: Send to LLM
+    prompt = f"""
+You are an assistant helping understand project tasks.
+
+Given the following task details from Excel:
+
+{context}
+
+Explain the task clearly in simple terms.
+Also summarize key points like:
+- What needs to be done
+- Current status
+- Any important references
+
+Keep answer structured and concise.
+"""
+
+    explanation = call_ollama(prompt)
+
+    return explanation

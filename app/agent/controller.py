@@ -7,14 +7,15 @@ from tools.excel_tools import (
     count_rows_tool,
     filter_column_tool,
     aggregate_column_tool,
-    update_cell_tool
+    update_cell_tool,
+    explain_task_tool
 )
 
 
 def run_agent(user_input: str,graph_token:str):
     print(f"\n🧠 User Input: {user_input}")
 
-    intent = parse_intent(user_input)
+    intent = parse_intent(user_input,graph_token)
 
     if not intent:
         return "❌ Could not understand request"
@@ -42,5 +43,7 @@ def run_agent(user_input: str,graph_token:str):
         return aggregate_column_tool(intent,graph_token)
     elif intent.action == "update_cell":
         return update_cell_tool(intent,graph_token)
+    elif intent.action == "explain_task":
+        return explain_task_tool(intent, graph_token)
     else:
         return f"❌ Unknown action: {intent.action}"
