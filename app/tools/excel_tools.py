@@ -64,7 +64,7 @@ def get_all_rows_dict(headers):
 # 🎯 TOOL: GET ROW
 # =========================
 def get_row_tool(intent,graph_token,drive_id, item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
 
     header_names = get_headers(headers)
     rows = get_all_rows(headers)
@@ -94,7 +94,7 @@ def get_row_tool(intent,graph_token,drive_id, item_id):
 # ➕ TOOL: ADD ROW
 # =========================
 def add_row_tool(intent,graph_token,drive_id, item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
 
     header_names = get_headers(headers)
     column_map = build_column_map(header_names)
@@ -196,7 +196,7 @@ def get_excel_column_letter(n):
 #     return f"✅ Column '{column_name}' added with default '{default_value}'"
 
 def add_column_tool(intent,graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
 
     column_name = intent.column_name
     default_value = intent.default_value
@@ -269,7 +269,7 @@ def add_column_tool(intent,graph_token,drive_id,item_id):
 # 📖 TOOL: READ CELL
 # =========================
 def read_cell_tool(intent,graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
     rows = get_all_rows(headers)
 
     try:
@@ -282,7 +282,7 @@ def read_cell_tool(intent,graph_token,drive_id,item_id):
 # 🔢 TOOL: COUNT ROWS
 # =========================
 def count_rows_tool(intent,graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
     rows = get_all_rows_dict(headers)
 
     count = 0
@@ -389,7 +389,7 @@ def normalize(text):
 #     return result[:20]  
 
 def filter_column_tool(intent,graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
 
     # Step 1: Get headers + rows
     header_names = get_headers(headers)
@@ -451,7 +451,7 @@ def filter_column_tool(intent,graph_token,drive_id,item_id):
     return response.strip()
 
 def aggregate_column_tool(intent,graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
 
     # Step 1: Get headers + rows
     header_names = get_headers(headers)
@@ -548,7 +548,7 @@ def aggregate_column_tool(intent,graph_token,drive_id,item_id):
 
 
 def update_cell_tool(intent, graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id, item_id)
+    headers, base_url = setup_excel(graph_token,drive_id, item_id)
 
     header_names = get_headers(headers)
     column_map = build_column_map(header_names)
@@ -602,7 +602,7 @@ def update_cell_tool(intent, graph_token,drive_id,item_id):
     return f"✅ Updated '{target_column}' to '{intent.value}'"
 
 def explain_task_tool(intent, graph_token,drive_id,item_id):
-    headers = setup_excel(graph_token,drive_id,item_id)
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
 
     # Step 1: Get data
     header_names = get_headers(headers)

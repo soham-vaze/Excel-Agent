@@ -174,7 +174,8 @@ def get_current_user(request: Request):
 # =========================
 class QueryRequest(BaseModel):
     query: str
-
+    drive_id: str
+    item_id: str
 
 # =========================
 # 🧪 Test Endpoint
@@ -211,7 +212,7 @@ def ask_agent(body: QueryRequest, request: Request, user=Depends(get_current_use
             raise HTTPException(status_code=401, detail="Could not obtain Graph access")
 
         # 3. Pass the graph_token to the agent
-        response = run_agent(body.query, graph_token)
+        response = run_agent(body.query,graph_token,body.drive_id,body.item_id)
 
         return {
             "query": body.query,
@@ -225,12 +226,6 @@ def ask_agent(body: QueryRequest, request: Request, user=Depends(get_current_use
 
 
 import base64
-
-class QueryRequest(BaseModel):
-    query: str
-    drive_id: str
-    item_id: str
-
 # 🔗 Convert a SharePoint/OneDrive URL to a Graph-compatible ID
 @app.get("/resolve-url")
 def resolve_url(url: str, request: Request):
@@ -265,3 +260,42 @@ def list_folder(drive_id: str, item_id: str, request: Request):
     res = requests.get(url, headers={"Authorization": f"Bearer {graph_token}"})
     
     return res.json() # Returns list of files/folders
+
+
+import base64
+
+# --- New Endpoint 1: Resolve the Sharepoint Link ---
+@app.get("/resolve-sharepoint")
+def resolve_sharepoint(url: str, request: Request):
+    auth_header = request.headers.get("Authorization")
+    user_token = auth_header.split(" ")[1]
+    graph_token = get_graph_token(user_token)
+
+    # Encode the URL for Microsoft Graph 'Shares' API
+    # This turns a long browser URL into a unique 'sharing token'
+    base64_url = base64.b64encode(url.encode("utf-8")).decode("utf-8").replace('/', '_').replace('+', '-').rstrip('=')
+    share_url = f"https://graph.microsoft.com/v1.0/shares/u!{base64_url}/driveItem"
+
+    res = requests.get(share_url, headers={"Authorization": f"Bearer {graph_token}"})
+    
+    if res.status_code == 403:
+        raise HTTPException(status_code=403, detail="You do not have permission to access this resource.")
+    if res.status_code != 200:
+        raise HTTPException(status_code=res.status_code, detail="Invalid URL or Resource not found.")
+    
+    return res.json()
+
+# --- New Endpoint 2: List Folder Contents ---
+@app.get("/list-folder")
+def list_folder(drive_id: str, item_id: str, request: Request):
+    auth_header = request.headers.get("Authorization")
+    user_token = auth_header.split(" ")[1]
+    graph_token = get_graph_token(user_token)
+
+    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/children"
+    res = requests.get(url, headers={"Authorization": f"Bearer {graph_token}"})
+    
+    if res.status_code == 403:
+        raise HTTPException(status_code=403, detail="Access Denied to this folder.")
+        
+    return res.json()

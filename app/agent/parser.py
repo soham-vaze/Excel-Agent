@@ -4,8 +4,8 @@ from agent.schemas import Intent
 from tools.excel_tools import setup_excel, get_headers
 
 
-def build_prompt(user_input: str,graph_token) -> str:
-    headers = setup_excel(graph_token)
+def build_prompt(user_input: str,graph_token,drive_id,item_id) -> str:
+    headers, base_url = setup_excel(graph_token,drive_id,item_id)
     column_names = get_headers(headers)
 
     return f"""
@@ -27,8 +27,8 @@ User: {user_input}
 Return ONLY JSON:
 """ 
 
-def parse_intent(user_input: str,graph_token) -> Intent | None:
-    prompt = build_prompt(user_input,graph_token)
+def parse_intent(user_input: str,graph_token,drive_id,item_id) -> Intent | None:
+    prompt = build_prompt(user_input,graph_token,drive_id,item_id)
 
     response = call_ollama_json(prompt)
 
